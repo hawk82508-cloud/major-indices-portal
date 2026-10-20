@@ -1,0 +1,54 @@
+name: Daily 9 Major Indices Auto Update & GitHub Pages Deploy
+
+on:
+  schedule:
+    # 1. 每日 UTC 00:05 (台灣時間上午 08:05)：比特幣 (BTC) UTC 00:00 日K收盤後自動更新
+    - cron: '5 0 * * *'
+    # 2. 台股週一至週五收盤後自動執行：UTC 06:35 (台灣時間週一至週五下午 14:35，更新 TAIEX)
+    - cron: '35 6 * * 1-5'
+    # 3. 台北外匯市場週一至週五收盤後自動執行：UTC 08:30 (台灣時間週一至週五下午 16:30，更新 USDTWD)
+    - cron: '30 8 * * 1-5'
+    # 4. 美股、美元指數與國際現貨黃金週一至週五收盤後自動執行：UTC 21:30 (台灣時間週二至週六清晨 05:30，更新 DJI/SPX/NASDAQ/SOX/DXY/GOLD)
+    - cron: '30 21 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-all-indices:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run All 9 Indices (TAIEX / DJI / SPX / NASDAQ / SOX / DXY / USDTWD / BTC / GOLD) Calculation & Portal Builder
+        run: |
+          python update_all_indices.py
+
+      - name: Send Daily Email Report (Optional if Secrets Configured)
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          python send_email_report.py
+
+      - name: Commit and Push Updated CSVs & HTML to GitHub Pages
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/ index.html 各大指數高低控統整_多週期與跨週期前瞻雙軌通道分析系統_v2.0.html
+          git commit -m "Auto update 9 major indices data (v2.0): $(date '+%Y-%m-%d %H:%M')" || exit 0
+          git pull --rebase origin main || true
+          git push origin main || true
